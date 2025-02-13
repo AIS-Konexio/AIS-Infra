@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# Définition des variables
+user=konexioais 
+baseip="172.16."
+ipswitch=".254"
+netmask="255.255.255.0"         
+
+declare -A iplan=([admin]=0 [front]=5 [test]=10 [prod]=15)
+
+# Demande du mot de passe pour les switches
+read -p "Entrez le mot de passe des switchs : " password
+
+# Fonction qui cherche si un câble console est connecté (je pense)
+function ChercheCableConsole() {
+    if [ -e /dev/serial ]; then
+        devserial=`ls /dev/serial/by-id/ | grep -i cisco`
+    fi
+}
+
+# Fonction qui attend que le câble console soit branché
+function BranchementCableConsole() {
+    ChercheCableConsole
+    if [ -v $devserial ]; then  # Vérifie si la variable devserial est définie
+        echo -n "Reliez le PC et le switch avec un câble console"
+        while [ -v $devserial ]; do
+            echo -n "."
+            sleep .5
+            ChercheCableConsole  # Vérifie à nouveau
+        done
+        echo
+    fi
+}
+
+# Fonction pour configurer un switch donné en fonction de VLAN
+function ConfigureSwitch() {
+    lan=$1  # Récupère l'argument passé (admin, front, test, prod)
+    switchname=sw-${lan}00  # Définit le nom du switch
+    ipaddr=$baseip${iplan[$lan]}$ipswitch  # Calcule l'adresse IP du switch
+
+    BranchementCableConsole  # Vérifie que le câble console est bien branché
+
+    date=`date +%Y%m%d%M%S`  # Récupère la date et l'heure pour le fichier de "ResultatConfig" le output de resulta config serait par example ResultatConfig_admin_202502123957.txt
+
+    cat <<EOF > ResultatConfig_${lan}_${date}.txt 
+cisco 
+cisco
+$user
+$password
+$password
+configure terminal
+hostname $switchname
+interface vlan 1
+ip address $ipaddr $netmask
+exit
+EOF
+
+    devserial=
+}
+
+# Fonction spécifique configurer le switch Test-Prod
+function ConfigureTestProdSwitch() {
+    switchname="sw-test-prod00"  # Nom du switch
+
+    BranchementCableConsole  # Vérifie la connexion console
+    date=`date +%Y%m%d%M%S`  # Récupère la date pour le fichier de log
+
+    # Génère un fichier de configuration pour le switch Test-Prod
+    cat <<EOF > ResultatConfig_test_prod_${date}.txt
+#Envoi les commandes suivantes aux switch Test-Prod
+cisco
+cisco
+$user
+$password
+$password
+configure terminal
+hostname $switchname
+vlan ${iplan[test]} name test
+interface vlan ${iplan[test]}
+ip address $baseip${iplan[test]}$ipswitch $netmask
+interface range gi1/0/1-12
+switchport access vlan ${iplan[test]}
+no shutdown
+vlan ${iplan[prod]} name prod
+interface vlan ${iplan[prod]}
+ip address $baseip${iplan[prod]}$ipswitch $netmask
+interface range gi1/0/12-24
+switchport access vlan ${iplan[prod]}
+no shutdown
+exit
+EOF
+}
+
+# Boucle pour choisir quel switch a configurer
+while true; do
+    read -n1 -p "Configure switch [a] : Admin, [f] : Front, [t] : Test-Prod, [q] : Quitter " toto
+    echo
+    case $toto in
+        [aA]) echo "Configuration du switch Admin"; ConfigureSwitch admin; continue;;  # Admin
+        [fF]) echo "Configuration du switch Front"; ConfigureSwitch front; continue;;  # Front
+        [tTpP]) echo "Configuration du switch Test-Prod"; ConfigureTestProdSwitch; continue;;  # Test-Prod
+        [qQ]) echo "Fin"; break;;  # Quit le script
+        *) echo "Entrée invalide..."; continue;;
+    esac
+done
