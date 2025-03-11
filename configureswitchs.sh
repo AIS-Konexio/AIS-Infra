@@ -8,7 +8,7 @@ read -p "Entrez le mot de passe des switchs : " password
 
 function ChercheCableConsole() {
     if [ -e /dev/serial ]; then
-        devserial=`ls /dev/serial/by-id/ | grep -i cisco`
+        devserial=`ls /dev/serial/by-id/* | grep -i cisco`
     fi
 }
 
@@ -31,8 +31,7 @@ switchname=sw-${lan}00
 ipaddr=$baseip${iplan[$lan]}$ipswitch
 BranchementCableConsole
 date=`date +%Y%m%d%M%S`
-#minicom -D $devserial -C ResultatConfig_${lan}_${date}.txt <<EOF
-cat <<EOF > ResultatConfig_${lan}_${date}.txt
+minicom -D $devserial -C ResultatConfig_${lan}_${date}.txt <<EOF
 cisco
 cisco
 $user
@@ -51,8 +50,7 @@ function ConfigureTestProdSwitch() {
 switchname="sw-test-prod00"
 BranchementCableConsole
 date=`date +%Y%m%d%M%S`
-#minicom -D $devserial -C ResultatConfig_${lan}_${date}.txt <<EOF
-cat <<EOF > ResultatConfig_test_prod_${date}.txt
+minicom -D $devserial -C ResultatConfig_${lan}_${date}.txt <<EOF
 cisco
 cisco
 $user
